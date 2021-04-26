@@ -1,11 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import SimpleITK as sitk
+import sys
 # to save and write as pngs
 from imageio import imwrite, imread
 
 
-
+# filename = sys.argv[1];
+# im_obj = sitk.ReadImage(filename);
 im_obj = sitk.ReadImage('data/IMG-0002-00074.dcm');
 print("The type of 'image obj' is {}.".format(type(im_obj)));
 
