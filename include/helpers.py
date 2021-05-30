@@ -1,7 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from pandas.core.accessor import register_index_accessor
-# to save and write as pngs
 import scipy.ndimage
 import scipy.sparse.csgraph
 import SimpleITK as sitk
@@ -9,6 +6,7 @@ import sklearn.cluster
 import sklearn.preprocessing
 from skimage.measure import block_reduce
 from skimage.filters import sobel, gaussian
+import sklearn.metrics as metrics
 
 
 def get_image(filename: str, apply_threshold: bool = True, scaling_factor: int = 12, amplify_edges: bool = False):
@@ -134,16 +132,31 @@ def get_spectral_clustering(similarity_matrix: np.array, n_clusters: int = 10):
     return clusters.labels_, eigenvalues[:n_clusters], selected_eigenvectors
 
 
-def plot_clustering(labels, shape: np.array, cluster: int = None):
-    cluster_image = np.zeros(shape)
+def get_cluster_image(labels, shape: np.array, cluster: int = None):
+    cluster_image = np.copy(labels)
 
-    for i, l in enumerate(labels):
-        x = i % shape[0]
-        y = int(i / shape[0])
-        if cluster is None or l == cluster:
-            # make sure that cluster 0 does not get confused with default value
-            cluster_image[y, x] = l + 1
+    cluster_image = np.reshape(cluster_image, shape)
 
-    # plot image
-    plt.imshow(cluster_image, cmap="gray")
-    plt.show()
+    # make sure that cluster 0 does not get confused with default value
+    cluster_image += 1
+
+    if cluster is not None:
+        cluster_image[cluster_image != cluster + 1] = 0
+
+    return cluster_image
+
+
+def get_evaluation_scores(cluster_image, ground_truth_image):
+    cluster_image = np.copy(cluster_image)
+    ground_truth_image = np.copy(ground_truth_image)
+    cluster_image[cluster_image != 0] = 1
+    ground_truth_image[ground_truth_image != 0] = 1
+    ground_truth_image = ground_truth_image.astype(int)
+
+    jaccard = metrics.jaccard_score(
+        ground_truth_image.flatten(), cluster_image.flatten())
+
+    precision, sensitivity, _, _ = metrics.precision_recall_fscore_support(
+        ground_truth_image.flatten(), cluster_image.flatten())
+
+    return jaccard, precision, sensitivity
