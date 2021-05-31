@@ -11,7 +11,7 @@ from matplotlib.cm import ScalarMappable
 import networkx as nx
 
 
-def get_image(filename: str, normalize:bool = False, apply_threshold: bool = True, scaling_factor: int = 12, amplify_edges: bool = False):
+def get_image(filename: str, normalize: bool = False, apply_threshold: bool = True, scaling_factor: int = 12, amplify_edges: bool = False):
     image_dcm = sitk.ReadImage('include/data/' + filename)
     image_array_view = sitk.GetArrayViewFromImage(image_dcm)
     image = image_array_view.squeeze()
@@ -34,9 +34,9 @@ def get_image(filename: str, normalize:bool = False, apply_threshold: bool = Tru
         sobel_image = (sobel_image > 0.02)
 
         # replace ones with median value of noiseless image
-        # TODO: clarify why --> 
+        # TODO: clarify why -->
         # Not sure but we do want avoiding adding to much new information to the data,
-        # maybe the mean value could be good here too. adding ones to a normalized image 
+        # maybe the mean value could be good here too. adding ones to a normalized image
         # would change the distribution of the data...
         tmp = np.zeros((sobel_image.shape))
         tmp[sobel_image == 1] = np.median(noiseless_image)
@@ -161,25 +161,10 @@ def get_evaluation_scores(cluster_image, ground_truth_image):
     jaccard = metrics.jaccard_score(
         ground_truth_image.flatten(), cluster_image.flatten())
 
-    precision, sensitivity, _, _ = metrics.precision_recall_fscore_support(
+    precision, sensitivity, fscore, _ = metrics.precision_recall_fscore_support(
         ground_truth_image.flatten(), cluster_image.flatten())
-    return jaccard, precision, sensitivity
+    return jaccard, fscore, precision, sensitivity
 
-def get_dice_coeff(ground_truth, mask):
-    '''
-    Takes a ground truth mask and a mask, return the Dice coefficient of these masks
-    '''
-    # convert to simple itk image object
-    ground_truth = sitk.GetImageFromArray(ground_truth)
-    mask = sitk.GetImageFromArray(mask)
-    label_overlap_measures_filter = sitk.LabelOverlapMeasuresImageFilter()
-
-#     mask.SetSpacing(reference_masks[0].GetSpacing())
-#     mask = sitk.Cast(mask, sitk.sitkUInt64)
-
-    label_overlap_measures_filter.Execute(ground_truth, mask)
-    
-    return label_overlap_measures_filter.GetDiceCoefficient()
 
 def get_hausdorff_dist(ground_truth, mask):
     '''
@@ -188,74 +173,82 @@ def get_hausdorff_dist(ground_truth, mask):
     ground_truth = sitk.GetImageFromArray(ground_truth)
     mask = sitk.GetImageFromArray(mask)
     hausdorff_distance_image_filter = sitk.HausdorffDistanceImageFilter()
-    
-#     mask.SetSpacing(reference_masks[0].GetSpacing())
-#     mask = sitk.Cast(mask, sitk.sitkUInt64)
-    
+
     hausdorff_distance_image_filter.Execute(ground_truth, mask)
-    
+
     return hausdorff_distance_image_filter.GetHausdorffDistance()
 
+
 def plt_img_fignHist(image):
-    plt.figure(figsize=(12,12));
-    plt.subplot(1, 2, 1);
-    plt.imshow(image, cmap='gray');
-    plt.xlabel('x');
-    plt.ylabel('y');
-    plt.subplot(1, 2, 2);
-    uniqe = np.unique(image, return_counts=True);
-    plt.plot(uniqe[0],uniqe[1]);
-    plt.xlabel('values');
-    plt.ylabel('counts');
-    plt.show();
-    
+    plt.figure(figsize=(12, 12))
+    plt.subplot(1, 2, 1)
+    plt.imshow(image, cmap='gray')
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.subplot(1, 2, 2)
+    uniqe = np.unique(image, return_counts=True)
+    plt.plot(uniqe[0], uniqe[1])
+    plt.xlabel('values')
+    plt.ylabel('counts')
+    plt.show()
+
+
 def print_img_info(image):
-    unique = np.unique(image);
-    print('The first 5 values in the image: \n', unique[0:5]);
-    print('The maximum value is: {}, and minimum is: {}'.format(np.max(image), np.min(image)));
-    print('The mean value is: {}, and the median is: {}'.format(np.mean(image), np.median(image)));
-    print('Total Number of values in the image: ',len(unique));
-    print('The image size: {}, dimensions: {} and the shape: {}'.format(image.size, image.ndim, image.shape));    
-    
+    unique = np.unique(image)
+    print('The first 5 values in the image: \n', unique[0:5])
+    print('The maximum value is: {}, and minimum is: {}'.format(
+        np.max(image), np.min(image)))
+    print('The mean value is: {}, and the median is: {}'.format(
+        np.mean(image), np.median(image)))
+    print('Total Number of values in the image: ', len(unique))
+    print('The image size: {}, dimensions: {} and the shape: {}'.format(
+        image.size, image.ndim, image.shape))
+
+
 def build_graph_of_simiMatrix(simi_matrix):
     return nx.convert_matrix.from_numpy_matrix(simi_matrix)
+
 
 def get_avg_cluster_coef(graph):
     return nx.average_clustering(graph)
 
+
 def get_normalizedCut_value(graph, subGraph):
     return nx.normalized_cut_size(graph, subGraph)
 
-def get_general_graph_info(graph)
+
+def get_general_graph_info(graph):
     inf = nx.info(gwm_img)
     info['Density og graph'] = nx.density(gwm_img)
     return inf
 
+
 def plt_graph_hist(graph):
     hist = nx.degree_histogram(graph)
-    plt.plot(range(0,len(hist),1), hist)
+    plt.plot(range(0, len(hist), 1), hist)
     plt.xlabel('degree values, index in the list')
     plt.ylabel('values of hist, frequencies of degrees')
     plt.show()
     return hist
-    
+
+
 def plot_cluster_distribuition(graph):
     # https://stackoverflow.com/questions/64485434/how-to-plot-the-distribution-of-a-graphs-clustering-coefficient
     g_connected = gwm_img.subgraph(max(nx.connected_components(graph)))
     list_cluster_coef = nx.clustering(g_connected)
-    
+
     cmap = plt.get_cmap('autumn')
     norm = plt.Normalize(0, max(list_cluster_coef.values()))
-    node_colors = [cmap(norm(list_cluster_coef[node])) for node in g_connected.nodes]
+    node_colors = [cmap(norm(list_cluster_coef[node]))
+                   for node in g_connected.nodes]
     fig, (ax1, ax2) = plt.subplots(nrows=2, figsize=(12, 12))
-    nx.draw_spring(g_connected, node_color=node_colors, with_labels=False, ax=ax1)
-    fig.colorbar(ScalarMappable(cmap=cmap, norm=norm), label='Clustering', shrink=0.95, ax=ax1)
+    nx.draw_spring(g_connected, node_color=node_colors,
+                   with_labels=False, ax=ax1)
+    fig.colorbar(ScalarMappable(cmap=cmap, norm=norm),
+                 label='Clustering', shrink=0.95, ax=ax1)
 
     ax2.hist(list_cluster_coef.values(), bins=10)
     ax2.set_xlabel('Clustering')
     ax2.set_ylabel('Frequency')
     plt.tight_layout()
     plt.show()
-    
-    
-    
