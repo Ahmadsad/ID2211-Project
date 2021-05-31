@@ -9,10 +9,11 @@ from skimage.filters import sobel, gaussian
 import sklearn.metrics as metrics
 from matplotlib.cm import ScalarMappable
 import networkx as nx
+import matplotlib.pyplot as plt
 
 
 def get_image(filename: str, normalize:bool = False, apply_threshold: bool = True, scaling_factor: int = 12, amplify_edges: bool = False):
-    image_dcm = sitk.ReadImage('include/data/' + filename)
+    image_dcm = sitk.ReadImage(filename)
     image_array_view = sitk.GetArrayViewFromImage(image_dcm)
     image = image_array_view.squeeze()
     image = np.array(image)
@@ -52,7 +53,7 @@ def get_image(filename: str, normalize:bool = False, apply_threshold: bool = Tru
 
 
 def get_ground_truth_image(filename: str, scaling_factor: int = 12):
-    image_dcm = sitk.ReadImage('include/data/' + filename)
+    image_dcm = sitk.ReadImage(filename)
     image = sitk.GetArrayFromImage(image_dcm)
 
     # scale down image
@@ -172,13 +173,14 @@ def get_dice_coeff(ground_truth, mask):
     # convert to simple itk image object
     ground_truth = sitk.GetImageFromArray(ground_truth)
     mask = sitk.GetImageFromArray(mask)
+    # after using getImage the images are assigned values 0-255, fix this below
     label_overlap_measures_filter = sitk.LabelOverlapMeasuresImageFilter()
-
-#     mask.SetSpacing(reference_masks[0].GetSpacing())
-#     mask = sitk.Cast(mask, sitk.sitkUInt64)
+    mask = sitk.Cast(mask, sitk.sitkUInt8)
+    mask = mask == np.max(mask)
+    ground_truth = sitk.Cast(ground_truth, sitk.sitkUInt8)
+    ground_truth = ground_truth == np.max(ground_truth)
 
     label_overlap_measures_filter.Execute(ground_truth, mask)
-    
     return label_overlap_measures_filter.GetDiceCoefficient()
 
 def get_hausdorff_dist(ground_truth, mask):
@@ -188,9 +190,11 @@ def get_hausdorff_dist(ground_truth, mask):
     ground_truth = sitk.GetImageFromArray(ground_truth)
     mask = sitk.GetImageFromArray(mask)
     hausdorff_distance_image_filter = sitk.HausdorffDistanceImageFilter()
-    
-#     mask.SetSpacing(reference_masks[0].GetSpacing())
-#     mask = sitk.Cast(mask, sitk.sitkUInt64)
+    # after using getImage the images are assigned values 0-255, fix this below
+    mask = sitk.Cast(mask, sitk.sitkUInt8)
+    mask = mask == np.max(mask)
+    ground_truth = sitk.Cast(ground_truth, sitk.sitkUInt8)
+    ground_truth = ground_truth == np.max(ground_truth)
     
     hausdorff_distance_image_filter.Execute(ground_truth, mask)
     
@@ -211,7 +215,7 @@ def plt_img_fignHist(image):
     
 def print_img_info(image):
     unique = np.unique(image);
-    print('The first 5 values in the image: \n', unique[0:5]);
+    print('The first {} values in the image: \n'.format(len(unique[0:5], unique[0:5])));
     print('The maximum value is: {}, and minimum is: {}'.format(np.max(image), np.min(image)));
     print('The mean value is: {}, and the median is: {}'.format(np.mean(image), np.median(image)));
     print('Total Number of values in the image: ',len(unique));
@@ -226,10 +230,9 @@ def get_avg_cluster_coef(graph):
 def get_normalizedCut_value(graph, subGraph):
     return nx.normalized_cut_size(graph, subGraph)
 
-def get_general_graph_info(graph)
-    inf = nx.info(gwm_img)
-    info['Density og graph'] = nx.density(gwm_img)
-    return inf
+def get_general_graph_info(graph):
+    inf = nx.info(graph)
+    return inf + ' \nDensity of graph: {}'.format(nx.density(graph))
 
 def plt_graph_hist(graph):
     hist = nx.degree_histogram(graph)
@@ -241,7 +244,7 @@ def plt_graph_hist(graph):
     
 def plot_cluster_distribuition(graph):
     # https://stackoverflow.com/questions/64485434/how-to-plot-the-distribution-of-a-graphs-clustering-coefficient
-    g_connected = gwm_img.subgraph(max(nx.connected_components(graph)))
+    g_connected = graph.subgraph(max(nx.connected_components(graph)))
     list_cluster_coef = nx.clustering(g_connected)
     
     cmap = plt.get_cmap('autumn')
@@ -256,6 +259,25 @@ def plot_cluster_distribuition(graph):
     ax2.set_ylabel('Frequency')
     plt.tight_layout()
     plt.show()
+
+def get_subgrapg(graph, clustering_label):
+  '''Takes a graph and an array with the indices of the nodes to be separated in a new subgrapg
+      return a subgraph with the specified nodes of the given clustering labels'''
+  return graph.subgraph(list((clustering_label)[0]))
     
+   
     
-    
+def plot_multiple_masks(masks, clusters_label, img):
+    row=1
+    # Figure: Subplot
+    fig, axs = plt.subplots(row, len(masks),figsize=(20,20))
+
+    # Plot Data
+    for col, mask in enumerate(masks):
+        try:
+            axs[col].imshow(img, cmap='Reds')
+            axs[col].imshow(mask==clusters_label[col], cmap='Blues', alpha=0.6)
+        except:
+            pass
+        axs[col].set_title("Mask {} merged on image".format(col))
+    fig.show()
