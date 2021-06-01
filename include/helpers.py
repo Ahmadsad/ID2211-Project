@@ -22,12 +22,6 @@ def get_image(filename: str, normalize: bool = False, apply_threshold: bool = Tr
         image[image < -160] = -1024
         image[image > 240] = -1024
 
-    if normalize:
-        # add an offset to 'remove' negative values
-        image = np.sqrt((image+np.abs(np.min(image)))**2)
-        # normalize
-        image = image/np.max(image)
-
     if amplify_edges:
         noiseless_image = gaussian(image, sigma=1)
         sobel_image = sobel(image)
@@ -43,6 +37,12 @@ def get_image(filename: str, normalize: bool = False, apply_threshold: bool = Tr
         sobel_image = tmp
 
         image = sobel_image + noiseless_image
+
+    if normalize:
+        # add an offset to 'remove' negative values
+        image = np.sqrt((image + np.abs(np.min(image))) ** 2)
+        # normalize
+        image = image / np.max(image)
 
     # scale down image
     image = block_reduce(image, block_size=(
@@ -99,7 +99,6 @@ def build_similarity_matrix(image: np.array, use_spatial: bool = False, spatial_
                         np.array(image[i, j]) - np.array(image[ii, jj]))
                     weight = np.exp(-np.power(intensity_diff,
                                               2)/sigma_intensity)
-
                     if use_spatial:
                         weight *= np.exp(-np.power(distance, 2)/sigma_distance)
 
@@ -215,7 +214,7 @@ def plt_img_fignHist(image):
 
 def print_img_info(image):
     unique = np.unique(image);
-    print('The first {} values in the image: \n'.format(len(unique[0:5], unique[0:5])));
+    print('The first {} values in the image: \n'.format(len(unique[0:5]), unique[0:5]));
     print('The maximum value is: {}, and minimum is: {}'.format(np.max(image), np.min(image)));
     print('The mean value is: {}, and the median is: {}'.format(np.mean(image), np.median(image)));
     print('Total Number of values in the image: ',len(unique));
@@ -252,7 +251,7 @@ def plot_cluster_distribuition(graph):
     norm = plt.Normalize(0, max(list_cluster_coef.values()))
     node_colors = [cmap(norm(list_cluster_coef[node]))
                    for node in g_connected.nodes]
-    fig, (ax1, ax2) = plt.subplots(nrows=2, figsize=(12, 12))
+    fig, (ax1, ax2) = plt.subplots(nrows=2, figsize=(10, 10))
     nx.draw_spring(g_connected, node_color=node_colors,
                    with_labels=False, ax=ax1)
     fig.colorbar(ScalarMappable(cmap=cmap, norm=norm),
@@ -270,17 +269,73 @@ def get_subgrapg(graph, clustering_label):
   return graph.subgraph(list((clustering_label)[0]))
     
 def plot_multiple_masks(masks, clusters_label, img):
-    row=1
-    # Figure: Subplot
-    fig, axs = plt.subplots(row, len(masks),figsize=(20,20))
+    '''Takes an image and two lists one with masks and one with correponding labels of interset, plots the image merged with masks'''
 
-    # Plot Data
+    if len(masks)>1:
+        fig, axs = plt.subplots(1, len(masks),figsize=(20,20))
+    # Plot several
     for col, mask in enumerate(masks):
         try:
             axs[col].imshow(img, cmap='Reds')
             axs[col].imshow(mask==clusters_label[col], cmap='Blues', alpha=0.6)
+            axs[col].set_title("Mask merged on image")
+            fig.show()
         except:
             pass
-        axs[col].set_title("Mask {} merged on image".format(col))
-    fig.show()
+    # plot only one mask
+    else:
+        plt.imshow(img, cmap='Reds')
+        if len(clusters_label)>1:
+          clusters_label =clusters_label[0]
+        plt.imshow(masks[0]==clusters_label, cmap='Blues', alpha=0.6)
+        plt.title('merged mask on image')
+        plt.show()
 
+
+def build_weighMatrix(image, radius=6, use_spatial=False):
+
+    G = np.zeros((image.shape[0] ** 2, image.shape[1] ** 2));
+    std_img = np.std(image);
+    indices_dict = build_indices_dict(image);
+    distance_diff = 1
+    for i in range(G.shape[0]):
+        for j in range(G.shape[1]):
+            if use_spatial:
+                distance_diff = calc_node_distance(indices_dict[i], indices_dict[j]);
+                if int(np.round(distance_diff)) < int(radius):
+                    distance_diff = np.exp(-distance_diff / (len(image) * 0.1));
+                else:
+                    distance_diff = 0;
+            intens_diff = np.exp(-calc_nodes_intens_diff(image[indices_dict[i]], image[indices_dict[j]]) / std_img)
+            G[i, j] = intens_diff * distance_diff;
+    return G;
+
+
+def calc_node_distance(nodeA, nodeB):
+    dis_deff = np.sqrt(np.power(nodeA[0] - nodeB[0], 2) + np.power(nodeA[1] - nodeB[1], 2));
+    return dis_deff;
+
+def calc_nodes_intens_diff(intensityA, intensityB):
+    intens_diff = np.sqrt(np.power(intensityA - intensityB, 2));
+    return intens_diff;
+
+def build_indices_dict(image):
+    indices = dict()
+    s = 0
+    for i in range(image.shape[0]):
+        for j in range(image.shape[1]):
+            indices[s] = (i, j)
+            s += 1
+    return indices
+
+def sparsefy_simi_matrix(simi_matrix, sparse_thresh=0.8):
+    '''Takes a similarity matrix and returns a sparse matrix with ones for values above the specified thresh'''
+    sparse_simi_matrix = np.zeros((simi_matrix.shape))
+    sparse_simi_matrix[simi_matrix > sparse_thresh] = 1
+    return sparse_simi_matrix
+
+def get_mask_with_specLabel(mask, label):
+    '''Get the mask with 1 for the wished label and 0 o.w. used for evaluations'''
+    tmp = np.zeros((mask.shape))
+    tmp[mask == label] = 1
+    return tmp
