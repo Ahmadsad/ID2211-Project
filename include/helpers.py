@@ -11,6 +11,7 @@ from matplotlib.cm import ScalarMappable
 import networkx as nx
 import matplotlib.pyplot as plt
 
+
 def get_image(filename: str, normalize: bool = False, apply_threshold: bool = True, scaling_factor: int = 12, amplify_edges: bool = False):
     image_dcm = sitk.ReadImage('include/data/' + filename)
     image_array_view = sitk.GetArrayViewFromImage(image_dcm)
@@ -141,11 +142,8 @@ def get_cluster_image(labels, shape: np.array, cluster: int = None):
 
     cluster_image = np.reshape(cluster_image, shape)
 
-    # make sure that cluster 0 does not get confused with default value
-    cluster_image += 1
-
     if cluster is not None:
-        cluster_image[cluster_image != cluster + 1] = 0
+        cluster_image[cluster_image != cluster] = 0
 
     return cluster_image
 
@@ -164,6 +162,7 @@ def get_evaluation_scores(cluster_image, ground_truth_image):
         ground_truth_image.flatten(), cluster_image.flatten())
     return jaccard, fscore, precision, sensitivity
 
+
 def get_dice_coeff(ground_truth, mask):
     '''
     Takes a ground truth mask and a mask, return the Dice coefficient of these masks
@@ -180,6 +179,7 @@ def get_dice_coeff(ground_truth, mask):
 
     label_overlap_measures_filter.Execute(ground_truth, mask)
     return label_overlap_measures_filter.GetDiceCoefficient()
+
 
 def get_hausdorff_dist(ground_truth, mask):
     '''
@@ -213,25 +213,34 @@ def plt_img_fignHist(image):
 
 
 def print_img_info(image):
-    unique = np.unique(image);
-    print('The first {} values in the image: \n'.format(len(unique[0:5]), unique[0:5]));
-    print('The maximum value is: {}, and minimum is: {}'.format(np.max(image), np.min(image)));
-    print('The mean value is: {}, and the median is: {}'.format(np.mean(image), np.median(image)));
-    print('Total Number of values in the image: ',len(unique));
-    print('The image size: {}, dimensions: {} and the shape: {}'.format(image.size, image.ndim, image.shape));    
+    unique = np.unique(image)
+    print('The first {} values in the image: \n'.format(
+        len(unique[0:5]), unique[0:5]))
+    print('The maximum value is: {}, and minimum is: {}'.format(
+        np.max(image), np.min(image)))
+    print('The mean value is: {}, and the median is: {}'.format(
+        np.mean(image), np.median(image)))
+    print('Total Number of values in the image: ', len(unique))
+    print('The image size: {}, dimensions: {} and the shape: {}'.format(
+        image.size, image.ndim, image.shape))
+
 
 def build_graph_of_simiMatrix(simi_matrix):
     return nx.convert_matrix.from_numpy_matrix(simi_matrix)
 
+
 def get_avg_cluster_coef(graph):
     return nx.average_clustering(graph)
+
 
 def get_normalizedCut_value(graph, subGraph):
     return nx.normalized_cut_size(graph, subGraph)
 
+
 def get_general_graph_info(graph):
     inf = nx.info(graph)
     return inf + ' \nDensity of graph: {}'.format(nx.density(graph))
+
 
 def plt_graph_hist(graph):
     hist = nx.degree_histogram(graph)
@@ -263,21 +272,24 @@ def plot_cluster_distribuition(graph):
     plt.tight_layout()
     plt.show()
 
+
 def get_subgrapg(graph, clustering_label):
-  '''Takes a graph and an array with the indices of the nodes to be separated in a new subgrapg
-      return a subgraph with the specified nodes of the given clustering labels'''
-  return graph.subgraph(list((clustering_label)[0]))
-    
+    '''Takes a graph and an array with the indices of the nodes to be separated in a new subgrapg
+        return a subgraph with the specified nodes of the given clustering labels'''
+    return graph.subgraph(list((clustering_label)[0]))
+
+
 def plot_multiple_masks(masks, clusters_label, img):
     '''Takes an image and two lists one with masks and one with correponding labels of interset, plots the image merged with masks'''
 
-    if len(masks)>1:
-        fig, axs = plt.subplots(1, len(masks),figsize=(20,20))
+    if len(masks) > 1:
+        fig, axs = plt.subplots(1, len(masks), figsize=(20, 20))
     # Plot several
     for col, mask in enumerate(masks):
         try:
             axs[col].imshow(img, cmap='Reds')
-            axs[col].imshow(mask==clusters_label[col], cmap='Blues', alpha=0.6)
+            axs[col].imshow(mask == clusters_label[col],
+                            cmap='Blues', alpha=0.6)
             axs[col].set_title("Mask merged on image")
             fig.show()
         except:
@@ -285,39 +297,44 @@ def plot_multiple_masks(masks, clusters_label, img):
     # plot only one mask
     else:
         plt.imshow(img, cmap='Reds')
-        if len(clusters_label)>1:
-          clusters_label =clusters_label[0]
-        plt.imshow(masks[0]==clusters_label, cmap='Blues', alpha=0.6)
+        if len(clusters_label) > 1:
+            clusters_label = clusters_label[0]
+        plt.imshow(masks[0] == clusters_label, cmap='Blues', alpha=0.6)
         plt.title('merged mask on image')
         plt.show()
 
 
 def build_weighMatrix(image, radius=6, use_spatial=False):
 
-    G = np.zeros((image.shape[0] ** 2, image.shape[1] ** 2));
-    std_img = np.std(image);
-    indices_dict = build_indices_dict(image);
+    G = np.zeros((image.shape[0] ** 2, image.shape[1] ** 2))
+    std_img = np.std(image)
+    indices_dict = build_indices_dict(image)
     distance_diff = 1
     for i in range(G.shape[0]):
         for j in range(G.shape[1]):
             if use_spatial:
-                distance_diff = calc_node_distance(indices_dict[i], indices_dict[j]);
+                distance_diff = calc_node_distance(
+                    indices_dict[i], indices_dict[j])
                 if int(np.round(distance_diff)) < int(radius):
-                    distance_diff = np.exp(-distance_diff / (len(image) * 0.1));
+                    distance_diff = np.exp(-distance_diff / (len(image) * 0.1))
                 else:
-                    distance_diff = 0;
-            intens_diff = np.exp(-calc_nodes_intens_diff(image[indices_dict[i]], image[indices_dict[j]]) / std_img)
-            G[i, j] = intens_diff * distance_diff;
-    return G;
+                    distance_diff = 0
+            intens_diff = np.exp(-calc_nodes_intens_diff(
+                image[indices_dict[i]], image[indices_dict[j]]) / std_img)
+            G[i, j] = intens_diff * distance_diff
+    return G
 
 
 def calc_node_distance(nodeA, nodeB):
-    dis_deff = np.sqrt(np.power(nodeA[0] - nodeB[0], 2) + np.power(nodeA[1] - nodeB[1], 2));
-    return dis_deff;
+    dis_deff = np.sqrt(
+        np.power(nodeA[0] - nodeB[0], 2) + np.power(nodeA[1] - nodeB[1], 2))
+    return dis_deff
+
 
 def calc_nodes_intens_diff(intensityA, intensityB):
-    intens_diff = np.sqrt(np.power(intensityA - intensityB, 2));
-    return intens_diff;
+    intens_diff = np.sqrt(np.power(intensityA - intensityB, 2))
+    return intens_diff
+
 
 def build_indices_dict(image):
     indices = dict()
@@ -328,11 +345,13 @@ def build_indices_dict(image):
             s += 1
     return indices
 
+
 def sparsefy_simi_matrix(simi_matrix, sparse_thresh=0.8):
     '''Takes a similarity matrix and returns a sparse matrix with ones for values above the specified thresh'''
     sparse_simi_matrix = np.zeros((simi_matrix.shape))
     sparse_simi_matrix[simi_matrix > sparse_thresh] = 1
     return sparse_simi_matrix
+
 
 def get_mask_with_specLabel(mask, label):
     '''Get the mask with 1 for the wished label and 0 o.w. used for evaluations'''
